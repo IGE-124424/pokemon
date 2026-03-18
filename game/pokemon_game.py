@@ -30,15 +30,27 @@ class PokemonGame:
         self.game_over = False
         self.number_of_pokemons = 25
 
-    # --------------------------------
-
     def total_attack(self, attacker_types, defender_types):
 
-        # TO DO
+        best = 0
 
-        return 0
+        for at in attacker_types:
 
-    # --------------------------------
+            total = 1
+
+            for df in defender_types:
+
+                q= list(self.prolog.query(
+                    f"attack({at},{df},E)"
+                ))
+
+                effect = q[0]['E']
+                total = total * effect
+
+            if total > best:
+                best = total
+
+        return best
 
     def evaluate_next_rooms(self, pokemon_level, pos):
 
