@@ -8,12 +8,13 @@ class PokemonGame:
         self.prolog = Prolog()
         self.prolog.consult(prolog_file)
 
-        # Player initial position
+        # Posição inicial do jogador
         result = list(self.prolog.query("player_starts(X,Y)"))
         self.x_initial = result[0]['X']
         self.y_initial = result[0]['Y']
-        self.pos = (self.x_initial,self.y_initial)
-        # Starter pokemon
+        self.pos = (self.x_initial, self.y_initial)
+
+        # Pokemon inicial 
         self.pokemon_starter = starter_id
         self.pokemon_level = starter_level
 
@@ -30,46 +31,52 @@ class PokemonGame:
         self.game_over = False
         self.number_of_pokemons = 25
 
-    def total_attack(self, attacker_types, defender_types):
 
+    def total_attack(self, attacker_types, defender_types):
         best = 0
 
         for at in attacker_types:
-
             total = 1
 
             for df in defender_types:
+                q = list(self.prolog.query(f"attack({at},{df},E)"))
 
-                q= list(self.prolog.query(
-                    f"attack({at},{df},E)"
-                ))
+                if len(q) == 0:
+                    effect = 1
+                else:
+                    effect = q[0]['E']
 
-                effect = q[0]['E']
-                total = total * effect
+                total *= effect
 
             if total > best:
                 best = total
 
         return best
 
-    def evaluate_next_rooms(self, pokemon_level, pos):
 
+    def evaluate_next_rooms(self, pokemon_level, pos):
         list_next_rooms = list(self.prolog.query(f"next_rooms({pos[0]},{pos[1]},L)"))
+
+        # Se Prolog não devolver nada, evita crash
+        if len(list_next_rooms) == 0:
+            return None, 0
+
+        rooms = list_next_rooms[0]['L']
+
+        if len(rooms) == 0:
+            return None, 0
 
         best_room = None
         best_prob = -1
 
-        for room in list_next_rooms[0]['L']:
+        for room in rooms:
+            room_pos = (room[3], room[4])
 
-            if (room[3], room[4]) not in self.visited_rooms:
-
+            if room_pos not in self.visited_rooms:
                 level_input = pokemon_level - room[2]
-                effect_input = self.total_attack(
-                    self.pokemon_starter_types, room[5])
+                effect_input = self.total_attack(self.pokemon_starter_types, room[5])
 
                 prob_of_win = calculate_prob(level_input, effect_input)
-                # print(f"level_input: {level_input} effect_input: {effect_input}")
-                # print("Possible Room:", room, "Probability of win:", prob_of_win)
 
                 if prob_of_win > best_prob:
                     best_prob = prob_of_win
@@ -77,45 +84,49 @@ class PokemonGame:
 
         return best_room, best_prob
 
-    # --------------------------------
 
     def it_wins(self, prob):
         r = random.random()
         print("Random value:", r)
         return r < prob
 
-    # --------------------------------
 
     def update_level(self, defender_level):
         if self.pokemon_level < 10:
             if self.pokemon_level < defender_level:
-                    self.pokemon_level += 1
+                self.pokemon_level += 1
             elif self.pokemon_level > defender_level:
                 value = random.random()
                 if value <= 0.3:
                     self.pokemon_level += 1
-            else: 
-                    value = random.random()
-                    if value <= 0.5:
-                        self.pokemon_level += 1
+            else:
+                value = random.random()
+                if value <= 0.5:
+                    self.pokemon_level += 1
+
         print(f"Pokemon level: {self.pokemon_level}")
 
-    # --------------------------------
 
     def get_random_pos(self, x, y, rows, cols):
         moves = [
-            (x-1, y),  # up
-            (x+1, y),  # down
-            (x, y-1),  # left
-            (x, y+1)   # right
+            (x, y-1),  # cima
+            (x, y+1),  # baixo
+            (x-1, y),  # esquerda
+            (x+1, y)   # direita
         ]
+
         valid_moves = [
             (nx, ny) for nx, ny in moves
-            if 0 <= nx < rows and 0 <= ny < cols
+            if 0 <= nx < cols and 0 <= ny < rows
         ]
+
+        # evitar voltar para salas já visitadas, se possível
+        unvisited_moves = [pos for pos in valid_moves if pos not in self.visited_rooms]
+
+        if len(unvisited_moves) > 0:
+            return random.choice(unvisited_moves)
+
         return random.choice(valid_moves)
-    
-    # --------------------------------
 
     def next_step(self):
         """
@@ -126,36 +137,33 @@ class PokemonGame:
             return None, None, None, True
 
         next_room, prob = self.evaluate_next_rooms(self.pokemon_level, self.pos)
-        
-        if next_room == None:
+
+        if next_room is None:
             if len(self.visited_rooms) != self.number_of_pokemons:
-                (old_x,old_y) = self.pos
                 old_pos = self.pos
-                new_x, new_y = self.get_random_pos(old_x,old_y,5,5)
-                self.pos = (new_x,new_y)
+                old_x, old_y = self.pos
+
+                new_x, new_y = self.get_random_pos(old_x, old_y, 5, 5)
+                self.pos = (new_x, new_y)
+
                 return old_pos, self.pos, None, False
             else:
                 print("Yeah! You won!")
+                self.game_over = True
                 return None, None, None, True
+
+        print(f"Next Room: {next_room}, probability of win: {prob}")
+        won = self.it_wins(prob)
+        self.game_over = not won
+
+        if won:
+            old_pos = self.pos
+            new_pos = (next_room[3], next_room[4])
+
+            self.visited_rooms.append(new_pos)
+            self.pos = new_pos
+
+            self.update_level(next_room[2])
+            return old_pos, new_pos, prob, self.game_over
         else:
-            print(f"Next Room: {next_room}, probability of win: {prob}")
-            won = self.it_wins(prob)
-            self.game_over = not won
-            
-            if won:
-                old_pos = self.pos
-                new_pos = (next_room[3], next_room[4])
-
-                self.visited_rooms.append(new_pos)
-                self.pos = new_pos
-
-                self.update_level(next_room[2])
-            else:
-                return None, None, None, self.game_over
-
-        return old_pos, new_pos, prob, self.game_over
-
-    
-    # --------------------------------
-
-   
+            return None, None, prob, self.game_over

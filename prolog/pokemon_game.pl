@@ -1,8 +1,9 @@
-:-ensure_loaded("pokemon_list.pl").
-:-ensure_loaded("pokemon_info_attacks.pl").
-:-ensure_loaded("pokemon_route.pl").
+:- ensure_loaded("pokemon_list.pl").
+:- ensure_loaded("pokemon_info_attacks.pl").
+:- ensure_loaded("pokemon_route.pl").
 
 player_starts(0,0).
+
 next_rooms(X,Y,L) :-
     route(M),
     size(M,N),
@@ -18,21 +19,21 @@ next_rooms(X,Y,L) :-
     join(R3,R4,T2),
     join(T1,T2,L).
 
-next_rooms(_,_,[]).
-rooms_dir(M,N,X,Y,[]) :-
+rooms_dir(_,_,X,_,[]) :-
     X < 0.
-rooms_dir(M,N,X,Y,[]) :-
+rooms_dir(_,_,_,Y,[]) :-
     Y < 0.
-rooms_dir(M,N,X,Y,[]) :-
+rooms_dir(_,N,X,_,[]) :-
     X >= N.
-rooms_dir(M,N,X,Y,[]) :-
+rooms_dir(_,N,_,Y,[]) :-
     Y >= N.
 
-rooms_dir(M,N,X,Y,[[Id,Name,Level,X,Y,Types]]) :-
-    nth0(X,M,Row),
-    nth0(Y,Row,(Id,Level)),
+rooms_dir(M,_,X,Y,[[Id,Name,Level,X,Y,Types]]) :-
+    nth0(Y,M,Row),
+    nth0(X,Row,(Id,Level)),
     Id > 0,
     pokemon(Id,Name,Types).
+
 size([],0).
 size([_|T],N) :-
     size(T,N1),
